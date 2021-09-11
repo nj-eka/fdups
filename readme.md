@@ -6,6 +6,8 @@ Main priority of this program is fast finding duplicates (trying to get the most
 with flexible settings and at the same time with full monitoring of processing progress / statistics on all stages
 (which often comes at the expense of speed))
 
+Idea inspired by https://github.com/pauldreik/rdfind
+
 ### Features:
 - glob patterns with extended support **[**]** and classes **{ ... [, ...] }**;
 - glob search is concurrent, found paths are returned asap (not blocked) for further processing;
