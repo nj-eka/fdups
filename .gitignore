@@ -18,3 +18,5 @@ vendor/
 misc/
 todo/
 res/
+
+*.log
