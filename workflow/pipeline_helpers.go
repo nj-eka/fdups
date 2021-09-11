@@ -17,8 +17,10 @@ func Run(ctx context.Context, runners ...Runner) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
 		for i, dc := range doneChs {
-			logging.Msg(ctx).Debugf("closing %T", runners[i])
-			<-dc
+			if dc != nil {
+				logging.Msg(ctx).Debugf("closing %T", runners[i])
+				<-dc
+			}
 		}
 		close(done)
 	}()

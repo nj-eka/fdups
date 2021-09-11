@@ -19,7 +19,9 @@ func MergeErrors(ctx context.Context, errChs ...<-chan errs.Error) <-chan errs.E
 	// if further processing ended before closing the channel.
 	var capOut int
 	for _, errCh := range errChs {
-		capOut += cap(errCh)
+		if errCh != nil{
+			capOut += cap(errCh)
+		}
 	}
 	outputErrCh := make(chan errs.Error, capOut)
 
@@ -33,7 +35,9 @@ func MergeErrors(ctx context.Context, errChs ...<-chan errs.Error) <-chan errs.E
 	}
 	wg.Add(len(errChs))
 	for _, errCh := range errChs {
-		go output(errCh)
+		if errCh != nil {
+			go output(errCh)
+		}
 	}
 
 	// Start a goroutine to close out once all the output goroutines are
