@@ -1,0 +1,16 @@
+log_level: debug
+log_format: text
+roots:
+- "~/go"
+- "../.."
+- "."
+patterns:
+- "**/*{.go,.mod}"
+#meta_groups: "ugnmp"
+slink_enabled: true
+#is_dry: false
+output_dir: "res"
+head_hashing: md5;64
+tail_hashing: sha1;128
+full_hashing: sha256
+stats_update_rate: 2s
