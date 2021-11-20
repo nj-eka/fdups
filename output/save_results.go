@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	cou "github.com/nj-eka/fdups/contextutils"
+	cou "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	fh "github.com/nj-eka/fdups/fh"
 	"github.com/nj-eka/fdups/logging"

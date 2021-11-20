@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	cu "github.com/nj-eka/fdups/contextutils"
+	cu "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errflow"
 	fh "github.com/nj-eka/fdups/fh"
 	"github.com/nj-eka/fdups/logging"
@@ -26,15 +26,15 @@ const (
 
 	colorRed   = "\033[31m"
 	colorGreen = "\033[32m"
-	//colorYellow = "\033[33m"
+	colorYellow = "\033[33m"
 	colorBlue   = "\033[34m"
 	colorPurple = "\033[35m"
 	colorCyan   = "\033[36m"
-	//colorWhite  = "\033[37m"
+	colorWhite  = "\033[37m"
 )
 
-func PrintMonitors(ctx context.Context, startTime time.Time, statProducers ...workflow.StatProducer) {
-	ctx = cu.BuildContext(nil, cu.AddContextOperation("print_monitors"))
+func PrintStats(ctx context.Context, startTime time.Time, statProducers ...workflow.StatProducer) {
+	ctx = cu.BuildContext(nil, cu.AddContextOperation("print_stats"))
 	bufOut := bufio.NewWriter(os.Stdout)
 	bout := func(s string) {
 		if _, err := bufOut.WriteString(s); err != nil {
@@ -52,12 +52,13 @@ func PrintMonitors(ctx context.Context, startTime time.Time, statProducers ...wo
 		case *validating.ValidatorStats:
 			validFileStats = st.FileStats
 			validInodes = st.InodeStats
-		case errflow.ErrsStats:
+		case errflow.ErrorStats:
 			errsStats = st
 		case *filtering.ContentFilterStats:
 			dups = st
 		}
 	}
+
 	bout(upLeft)
 	isCompleted := dups.IsCompleted()
 	if !isCompleted {

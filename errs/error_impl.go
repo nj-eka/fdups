@@ -1,24 +1,22 @@
 package errs
 
 import (
-	cu "github.com/nj-eka/fdups/contextutils"
+	cu "github.com/nj-eka/fdups/contexts"
 	"time"
 )
 
 type errorData struct {
-	err      error
-	severity Severity
-	kind     Kind
-	ops      cu.Operations
-	frames   []Frame
-	ts       int64
+	err       error
+	severity  Severity
+	kind      Kind
+	ops       cu.Operations
+	frames    []Frame
+	ts        int64
 }
 
-// just for checking
 var _ Error = &errorData{}
 var _ Error = (*errorData)(nil)
 
-// newError set default values and return Error
 func newError() Error {
 	return errorData{kind: KindOther, severity: SeverityError, ts: time.Now().UnixNano()}
 }
@@ -28,9 +26,12 @@ func (e errorData) TimeStamp() time.Time {
 }
 
 func (e errorData) Error() string {
+	if e.kind == KindTransient {
+		if ee, ok := e.err.(Error); ok {
+			return ee.Unwrap().Error()
+		}
+	}
 	return e.err.Error()
-	//fmt.Sprintf("%q", e.err.Error())
-	//fmt.Sprintf("{ops: <%s> sfs: <%s>; err: <%v>", e.ops, e.frames, e.err)
 }
 
 func (e errorData) Severity() Severity {

@@ -2,7 +2,7 @@ package searching
 
 import (
 	"context"
-	cou "github.com/nj-eka/fdups/contextutils"
+	cou "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/logging"
 	"github.com/nj-eka/fdups/registrator"
@@ -52,7 +52,7 @@ func (r *searcher) Run(ctx context.Context) <-chan struct{} {
 	done := make(chan struct{})
 
 	for _, pattern := range r.patterns {
-		logging.Msg(ctx).Debugf("searching with pattern [%s]", pattern)
+		logging.LogMsg(ctx).Debugf("searching with pattern [%s]", pattern)
 		// todo: merge globs
 		if !strings.Contains(pattern, "**") {
 			wg.Add(1)

@@ -1,7 +1,7 @@
 package logging
 
 import (
-	cou "github.com/nj-eka/fdups/contextutils"
+	cou "github.com/nj-eka/fdups/contexts"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,7 +30,7 @@ func (f *ContextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 //		}
 //	}
 //	if ctx := e.Context; nil != ctx {
-//		if ops := contextutils.GetContextOperations(ctx).String(); ops != "" {
+//		if ops := contexts.GetContextOperations(ctx).String(); ops != "" {
 //			e.Data["ops"] = ops
 //		}
 //	}

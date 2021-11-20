@@ -1,13 +1,7 @@
-package contextutils
+package contexts
 
 import (
 	"context"
-)
-
-type ContextKey int
-
-const (
-	OperationKey ContextKey = iota
 )
 
 func BuildContext(ctx context.Context, ctxFns ...PartialContextFn) context.Context {

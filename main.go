@@ -6,7 +6,7 @@ import (
 	conf "github.com/heetch/confita"
 	"github.com/heetch/confita/backend/file"
 	"github.com/heetch/confita/backend/flags"
-	cu "github.com/nj-eka/fdups/contextutils"
+	cu "github.com/nj-eka/fdups/contexts"
 	erf "github.com/nj-eka/fdups/errflow"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/fh"
@@ -139,6 +139,7 @@ var cfg = Config{
 	DupGroupsInitCapacity:         1024,
 }
 
+// TODO: move global vars to app.config
 var (
 	startTime                            time.Time
 	currentUser                          *user.User
@@ -151,66 +152,87 @@ var (
 	minSize2Prefilters                   int64 // = 1 * (prefilterHeadSize + prefilterTailSize)
 )
 
+// TODO: after moving global variables, refactoring of this method is required (most likely it will disappear as unnecessary ? logger ?)
 func init() {
+	var (
+		err      error
+		ok       bool
+	)
 	startTime = time.Now()
-	ctx := cu.BuildContext(context.Background(), cu.SetContextOperation("00.init"))
+	ctx := cu.BuildContext(
+		context.Background(),
+		cu.SetContextOperation("00.init"),
+		errs.SetDefaultErrsSeverity(errs.SeverityCritical),
+		errs.SetDefaultErrsKind(errs.KindInvalidValue),
+	)
 	loader := conf.NewLoader(
 		file.NewBackend(DefaultConfigFile),
 		// env.NewBackend(), - no use cases yet
 		flags.NewBackend(),
 	)
-	if err := loader.Load(ctx, &cfg); err != nil {
-		logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid config: %w", err))
+	if err = loader.Load(ctx, &cfg); err != nil {
+		logging.LogError(ctx, fmt.Errorf("invalid config: %w", err))
 		log.Exit(1)
 	}
-	if err := logging.Initialize(ctx, cfg.LogFile, cfg.LogLevel, cfg.LogFormat, cfg.TraceFile, currentUser); err != nil {
+	if err = logging.Initialize(ctx, cfg.LogFile, cfg.LogLevel, cfg.LogFormat, cfg.TraceFile, currentUser); err != nil {
 		logging.LogError(err)
 		log.Exit(1)
 	}
+	// logger is initialized
 
-	var (
-		err      error
-		ok       bool
-		patterns = make([]string, 0, len(cfg.Patterns))
-	)
+	// roots validation
 	for i, root := range cfg.Roots {
-		if root, err = fh.ResolvePath(root, currentUser); err == nil {
+		if root, err = fh.SafeParentResolvePath(root, currentUser, 0700); err == nil {
 			if ok, err = fh.IsDirectory(root); err == nil && ok {
 				cfg.Roots[i] = root
 			}
 		}
 		if err != nil {
-			logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid root: %w", err))
+			logging.LogError(ctx, fmt.Errorf("invalid root: %w", err))
 			log.Exit(1)
 		}
 	}
+
+	// patterns validation
+	patterns := make([]string, 0, len(cfg.Patterns))
 	for _, pattern := range cfg.Patterns {
 		if patternExts, err := fh.ExpandPatternLists(pattern); err == nil {
 			patterns = append(patterns, patternExts...)
 		} else {
-			logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid pattern: %w", err))
+			logging.LogError(ctx, fmt.Errorf("invalid pattern: %w", err))
 			log.Exit(1)
 		}
 	}
 	cfg.Patterns = patterns
 
-	if cfg.OutputDir, err = fh.ResolvePath(cfg.OutputDir, currentUser); err != nil {
-		logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid pattern: %w", err))
+	// output validation
+	if cfg.OutputDir, err = fh.SafeParentResolvePath(cfg.OutputDir, currentUser, 0700); err != nil {
+		logging.LogError(ctx, fmt.Errorf("invalid pattern: %w", err))
 		log.Exit(1)
 	}
 	if err = os.MkdirAll(cfg.OutputDir, 0755); err != nil {
-		logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("create output dir [%s] failed: %w", cfg.OutputDir, err))
+		logging.LogError(ctx, fmt.Errorf("create output dir [%s] failed: %w", cfg.OutputDir, err))
 		log.Exit(1)
 	}
 
+	// validator
 	statValidatorFunc = fs.NewRegularSizeStatValidator(cfg.MinSize, cfg.MaxSize)
 
+	// meta filters
 	metaGroups := map[rune]bool{'s': true}
 	for _, rc := range strings.ToLower(cfg.MetaGroupping) {
 		metaGroups[rc] = true
 	}
-	statMetaKeyFunc = fs.NewMetaKeyFunc(metaGroups['s'], metaGroups['n'], metaGroups['p'], metaGroups['u'], metaGroups['g'], metaGroups['m'])
+	statMetaKeyFunc = fs.NewMetaKeyFunc(
+		metaGroups['s'],
+		metaGroups['n'],
+		metaGroups['p'],
+		metaGroups['u'],
+		metaGroups['g'],
+		metaGroups['m'],
+	)
 
+	// head hashing
 	if len(cfg.HeadHashing) > 0 {
 		if parts := strings.Split(cfg.HeadHashing, ";"); len(parts) == 2 {
 			if size, err := strconv.ParseInt(parts[1], 10, 64); err == nil {
@@ -218,19 +240,20 @@ func init() {
 					hashFilterFuncs = append(hashFilterFuncs, hasher)
 					prefilterHeadSize = size
 				} else {
-					logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("head hashing init [%v] failed: %w", parts, err))
+					logging.LogError(ctx, fmt.Errorf("head hashing init [%v] failed: %w", parts, err))
 					log.Exit(1)
 				}
 			} else {
-				logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid head hashing size [%s]", parts[1]))
+				logging.LogError(ctx, fmt.Errorf("invalid head hashing size [%s]", parts[1]))
 				log.Exit(1)
 			}
 		} else {
-			logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid head hashing settings [%s]", cfg.HeadHashing))
+			logging.LogError(ctx, fmt.Errorf("invalid head hashing settings [%s]", cfg.HeadHashing))
 			log.Exit(1)
 		}
 	}
 
+	// tail hashing
 	if len(cfg.TailHashing) > 0 {
 		if parts := strings.Split(cfg.TailHashing, ";"); len(parts) == 2 {
 			if size, err := strconv.ParseInt(parts[1], 10, 64); err == nil {
@@ -238,19 +261,20 @@ func init() {
 					hashFilterFuncs = append(hashFilterFuncs, hasher)
 					prefilterTailSize = size
 				} else {
-					logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("tail hashing init [%v] failed: %w", parts, err))
+					logging.LogError(ctx, fmt.Errorf("tail hashing init [%v] failed: %w", parts, err))
 					log.Exit(1)
 				}
 			} else {
-				logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid tail hashing size [%s]", parts[1]))
+				logging.LogError(ctx, fmt.Errorf("invalid tail hashing size [%s]", parts[1]))
 				log.Exit(1)
 			}
 		} else {
-			logging.LogError(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid tail hashing settings [%s]", cfg.TailHashing))
+			logging.LogError(ctx, fmt.Errorf("invalid tail hashing settings [%s]", cfg.TailHashing))
 			log.Exit(1)
 		}
 	}
 
+	// full content hashing
 	if hasher, err := fs.GetHashFileFunc(cfg.FullHashing, 0, cfg.SizeInBlocks); err == nil {
 		hashFilterFuncs = append(hashFilterFuncs, hasher)
 		minSize2Prefilters = 1 * (prefilterHeadSize + prefilterTailSize) // 1.5 2 ...
@@ -259,24 +283,26 @@ func init() {
 		log.Exit(1)
 	}
 
+	// head/tail skipper
 	skipPrefiltersMaxSizeFunc = fs.NewFileSizeLesserFunc(minSize2Prefilters, cfg.SizeInBlocks)
 
+	// dups priority (for output ordering)
 	priorDupsFunc = fs.NewPriorFunc(cfg.Roots)
 }
 
 func main() {
 	defer logging.Finalize()
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt) //, syscall.SIGINT, syscall.SIGQUIT)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	ctx = cu.BuildContext(ctx, cu.SetContextOperation("0.main"))
-	logging.Msg(ctx).Debug("start listening for signals")
+	logging.LogMsg(ctx).Debug("start listening for signals")
 	go func() {
 		<-ctx.Done()
 		cancel() // stop listening for signed signals asap
-		logging.Msg(ctx).Debugf("stop listening for signed signals: %v", ctx.Err())
+		logging.LogMsg(ctx).Debugf("stop listening for signals: %v", ctx.Err())
 	}()
 	defer cancel() // in case of early return (on error) - signal to close already running goroutines
 
-	// init pipeline
+	// pipeline building
 	searcher := searching.NewSearcher(
 		ctx,
 		cfg.Roots,
@@ -292,40 +318,40 @@ func main() {
 		cfg.SLinkEnabled,
 		cfg.PatternFoundFilesInitCapacity,
 	)
-	metafilter := filtering.NewMetaFilter(
+	metaFilter := filtering.NewMetaFilter(
 		ctx,
 		validator.ValidatedFileStatCh(),
 		cfg.PatternFoundFilesInitCapacity,
 	)
-	contentfilter := filtering.NewContentFilter(
+	contentFilter := filtering.NewContentFilter(
 		ctx,
-		metafilter.DuplicateCh(),
-		metafilter.Stats().(registrator.MifsRegister),
+		metaFilter.DuplicateCh(),
+		metaFilter.Stats().(registrator.MifsRegister),
 		hashFilterFuncs,
 		skipPrefiltersMaxSizeFunc,
 		cfg.DupGroupsInitCapacity,
 	)
-	errmoder, err := erf.NewErrorModerator(
+	errModerator, err := erf.NewErrorModerator(
 		ctx,
 		cancel,
 		searcher,
 		validator,
-		metafilter,
-		contentfilter,
+		metaFilter,
+		contentFilter,
 	)
 	if err != nil {
 		logging.LogError(err)
 		return
 	}
 	pipeline := []workflow.Pipeliner{
-		searcher,
+		errModerator,
+		contentFilter,
+		metaFilter,
 		validator,
-		metafilter,
-		contentfilter,
-		errmoder,
+		searcher,
 	}
 
-	// launch pipeline
+	// run pipeline
 	finish := workflow.Run(ctx, workflow.Pipelines(pipeline).Runners()...)
 
 monitoring:
@@ -340,19 +366,19 @@ monitoring:
 				var answer string
 				if n, err := fmt.Scanln(&answer); n >= 1 && err == nil {
 					if strings.ToUpper(strings.SplitN(answer, "", 1)[0]) == "Y" {
-						SaveResults(ctx, contentfilter.Stats().(*filtering.ContentFilterStats))
+						SaveResults(ctx, contentFilter.Stats().(*filtering.ContentFilterStats))
 					}
 				}
 			}
 			<-finish
 			return
 		case <-time.After(cfg.StatsUpdateRate):
-			out.PrintMonitors(ctx, startTime, workflow.Pipelines(pipeline).StatProducers()...)
+			out.PrintStats(ctx, startTime, workflow.Pipelines(pipeline).StatProducers()...)
 		}
 	}
-	out.PrintMonitors(ctx, startTime, workflow.Pipelines(pipeline).StatProducers()...)
+	out.PrintStats(ctx, startTime, workflow.Pipelines(pipeline).StatProducers()...)
 	if !cfg.IsDry {
-		SaveResults(ctx, contentfilter.Stats().(*filtering.ContentFilterStats))
+		SaveResults(ctx, contentFilter.Stats().(*filtering.ContentFilterStats))
 	}
 }
 
@@ -362,7 +388,7 @@ func SaveResults(ctx context.Context, dups *filtering.ContentFilterStats) {
 		if report.Err != nil {
 			logging.LogError(report.Err)
 		} else {
-			logging.Msg(ctx).Info(
+			logging.LogMsg(ctx).Info(
 				fmt.Sprintf("results witten to file [%s]: %d(indexFrom) %d(dups) %d(files) %d(bytes)",
 					report.FileName,
 					report.IndexFrom,

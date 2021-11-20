@@ -1,8 +1,12 @@
-package contextutils
+package contexts
 
 import (
 	"context"
 )
+
+type ctxOperationKey int
+
+const OperationKey ctxOperationKey = 0
 
 func AddContextOperation(op Operation) PartialContextFn {
 	return func(ctx context.Context) context.Context {

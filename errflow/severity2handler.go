@@ -2,7 +2,7 @@ package errflow
 
 import (
 	"context"
-	cu "github.com/nj-eka/fdups/contextutils"
+	cu "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/logging"
 	"sync"
@@ -28,12 +28,12 @@ func MapErrorHandlers(
 		}
 		wg.Add(1)
 		go handler(cerr, &wg)
-		logging.Msg(ctx).Debug("Errors handlers for [", severity, "] - started")
+		logging.LogMsg(ctx).Debug("Errors handlers for [", severity, "] - started")
 	}
 	go func() {
 		wg.Wait()
 		close(done)
-		logging.Msg(ctx).Debug("Errors handlers - stopped")
+		logging.LogMsg(ctx).Debug("Errors handlers - stopped")
 	}()
 	return done
 }

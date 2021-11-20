@@ -8,7 +8,7 @@ package searching
 import (
 	"context"
 	"fmt"
-	cou "github.com/nj-eka/fdups/contextutils"
+	cou "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/logging"
 	"github.com/nj-eka/fdups/registrator"
@@ -27,7 +27,7 @@ func (globs Globs) CExpand(ctx context.Context, wg *sync.WaitGroup, cres chan<- 
 	defer workflow.OnExit(ctx, cerr, fmt.Sprintf("CGlobs [%s]", globs), func() {
 		wg.Done()
 	})
-	logging.Msg(ctx).Debug(fmt.Sprintf("CGlobs execution with globs [%s] - started", globs))
+	logging.LogMsg(ctx).Debug(fmt.Sprintf("CGlobs execution with globs [%s] - started", globs))
 
 	var matches = []string{""}
 	pathesDone := registrator.NewEncounter(1024)

@@ -3,7 +3,7 @@ package searching
 import (
 	"context"
 	"fmt"
-	cou "github.com/nj-eka/fdups/contextutils"
+	cou "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/logging"
 	"github.com/nj-eka/fdups/workflow"
@@ -20,7 +20,7 @@ func CGlob(ctx context.Context, wg *sync.WaitGroup, pattern string, cres chan<- 
 	defer workflow.OnExit(ctx, cerr, fmt.Sprintf("CGlob [%s]", pattern), func() {
 		wg.Done()
 	})
-	logging.Msg(ctx).Debugf(fmt.Sprintf("CGlob execution with pattern [%s] - started", pattern))
+	logging.LogMsg(ctx).Debugf(fmt.Sprintf("CGlob execution with pattern [%s] - started", pattern))
 
 	// Check pattern is well-formed.
 	if _, err := filepath.Match(pattern, ""); err != nil {
@@ -77,7 +77,7 @@ func CGlob(ctx context.Context, wg *sync.WaitGroup, pattern string, cres chan<- 
 func glob(ctx context.Context, dir, pattern string, cres chan<- string, cerr chan<- errs.Error) {
 	defer workflow.OnExit(ctx, cerr, fmt.Sprintf("Glob in dir [%s] with pattern [%s]", dir, pattern), func() {
 	})
-	logging.Msg(ctx).Debugf(fmt.Sprintf("Glob searching in dir [%s] with pattern [%s] - started", dir, pattern))
+	logging.LogMsg(ctx).Debugf(fmt.Sprintf("Glob searching in dir [%s] with pattern [%s] - started", dir, pattern))
 	fi, err := os.Stat(dir)
 	if err != nil {
 		cerr <- errs.E(ctx, errs.KindOSStat, fmt.Errorf("getting stat of [%s]: %w", dir, err))

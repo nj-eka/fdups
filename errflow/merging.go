@@ -2,7 +2,7 @@ package errflow
 
 import (
 	"context"
-	cu "github.com/nj-eka/fdups/contextutils"
+	cu "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/logging"
 	"sync"
@@ -45,7 +45,7 @@ func MergeErrors(ctx context.Context, errChs ...<-chan errs.Error) <-chan errs.E
 	go func() {
 		wg.Wait()
 		close(outputErrCh)
-		logging.Msg(ctx).Debug("Merged errors channel - closed")
+		logging.LogMsg(ctx).Debug("Merged errors channel - closed")
 	}()
 	return outputErrCh
 }

@@ -30,7 +30,7 @@ func OnExit(ctx context.Context, cerr chan<- errs.Error, prefixMsg string, fn fu
 		case <-ctx.Done():
 			cerr <- errs.E(ctx, errs.KindInterrupted, fmt.Errorf("%s - interrupted: %w", prefixMsg, ctx.Err()))
 		default:
-			logging.Msg(ctx).Debug(prefixMsg, " - ok")
+			logging.LogMsg(ctx).Debug(prefixMsg, " - ok")
 		}
 	}
 }

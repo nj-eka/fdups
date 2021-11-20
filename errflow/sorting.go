@@ -2,19 +2,16 @@ package errflow
 
 import (
 	"context"
-	cu "github.com/nj-eka/fdups/contextutils"
+	cu "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/logging"
 	"github.com/nj-eka/fdups/registrator"
 )
 
-type ErrsStats registrator.Encounter
-
-// SortFilteredErrors
-func SortFilteredErrors(ctx context.Context, inputErrCh <-chan errs.Error, filterSeverities []errs.Severity) (map[errs.Severity]chan errs.Error, ErrsStats) {
+func SortFilteredErrors(ctx context.Context, inputErrCh <-chan errs.Error, filterSeverities []errs.Severity) (map[errs.Severity]chan errs.Error, ErrorStats) {
 	ctx = cu.BuildContext(ctx, cu.AddContextOperation("sorting"))
 	scerr := make(map[errs.Severity]chan errs.Error)
-	stats := ErrsStats(registrator.NewEncounter(len(errs.AllSeverities) * int(errs.KindInternal) * 64))
+	stats := ErrorStats(registrator.NewEncounter(len(errs.AllSeverities) * int(errs.KindInternal) * 64))
 	for _, severity := range filterSeverities {
 		scerr[severity] = make(chan errs.Error, cap(inputErrCh))
 	}
@@ -22,7 +19,7 @@ func SortFilteredErrors(ctx context.Context, inputErrCh <-chan errs.Error, filte
 		defer func() {
 			for severity, cerr := range scerr {
 				close(cerr)
-				logging.Msg(ctx).Debug("Error channel - ", severity.String(), " - closed")
+				logging.LogMsg(ctx).Debug("Error channel - ", severity.String(), " - closed")
 			}
 		}()
 		for err := range inputErrCh {

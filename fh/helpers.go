@@ -31,6 +31,22 @@ func ResolvePath(path string, usr *user.User) (string, error) {
 	return filepath.Abs(path)
 }
 
+func SafeParentResolvePath(path string, usr *user.User, perm os.FileMode) (string, error) {
+	fullPath, err := ResolvePath(path, usr)
+	if err != nil {
+		return path, err
+	}
+	dir := path
+	if !strings.HasSuffix(path, string(filepath.Separator)) {
+		dir = filepath.Dir(fullPath)
+	}
+	err = os.MkdirAll(dir, perm)
+	if err != nil {
+		return path, err
+	}
+	return fullPath, nil
+}
+
 // IsDirectory checks whether path is directory and exists
 func IsDirectory(path string) (b bool, err error) {
 	fi, err := os.Stat(path)

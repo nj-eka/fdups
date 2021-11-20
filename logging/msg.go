@@ -3,12 +3,12 @@ package logging
 import (
 	"context"
 	"fmt"
-	cou "github.com/nj-eka/fdups/contextutils"
+	cou "github.com/nj-eka/fdups/contexts"
 	"github.com/sirupsen/logrus"
 	"time"
 )
 
-func Msg(args ...interface{}) *logrus.Entry {
+func LogMsg(args ...interface{}) *logrus.Entry {
 	entry := logrus.WithFields(logrus.Fields{
 		"cts":  time.Now().Format(DefaultTimeFormat),
 		"rec":  "msg",

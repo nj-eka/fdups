@@ -2,7 +2,7 @@ package errflow
 
 import (
 	"context"
-	cu "github.com/nj-eka/fdups/contextutils"
+	cu "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/logging"
 	"github.com/nj-eka/fdups/registrator"

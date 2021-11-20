@@ -3,7 +3,7 @@ package validating
 import (
 	"context"
 	"fmt"
-	cou "github.com/nj-eka/fdups/contextutils"
+	cou "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	. "github.com/nj-eka/fdups/filestat"
 	"github.com/nj-eka/fdups/registrator"

@@ -3,7 +3,7 @@ package logging
 import (
 	"context"
 	"fmt"
-	cou "github.com/nj-eka/fdups/contextutils"
+	cu "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	"github.com/nj-eka/fdups/fh"
 	"github.com/sirupsen/logrus"
@@ -14,32 +14,30 @@ import (
 	"strings"
 )
 
-const (
-	DefaultLevel      = logrus.InfoLevel
-	DefaultFormat     = "text"
-	DefaultTimeFormat = "2006/01/02 15:04:05.00000"
-)
-
 var logFile, traceFile *os.File
 
 func Initialize(ctx context.Context, logFileName, level, format, traceFileName string, usr *user.User) errs.Error {
-	ctx = cou.BuildContext(ctx, cou.AddContextOperation("log_init"))
+	ctx = cu.BuildContext(ctx, cu.AddContextOperation("log_init"), errs.SetDefaultErrsSeverity(errs.SeverityCritical))
 	logrus.SetOutput(os.Stdout)
 	logrus.RegisterExitHandler(Finalize)
 	if logFileName != "" {
 		var file *os.File
 		var err error
-		if logFileName, err := fh.ResolvePath(logFileName, usr); err != nil {
-			return errs.E(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid log file name <%s>: %w", logFileName, err))
+		if logFileName, err := fh.SafeParentResolvePath(logFileName, usr, 0700); err != nil {
+			return errs.E(ctx, errs.KindInvalidValue, fmt.Errorf("invalid log file name <%s>: %w", logFileName, err))
 		}
 		file, err = os.OpenFile(logFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0664)
 		if err != nil {
-			return errs.E(ctx, errs.SeverityCritical, errs.KindOSOpenFile, fmt.Errorf("open file <%s> for logging failed: %w", logFileName, err))
+			return errs.E(ctx, errs.KindOSOpenFile, fmt.Errorf("open file <%s> for logging failed: %w", logFileName, err))
 		} else {
 			logrus.SetOutput(file)
 			logFile = file
+			fmt.Println("logging to ", file.Name())
 		}
+	} else {
+		fmt.Println("logging to standard output")
 	}
+
 	fieldMap := logrus.FieldMap{
 		logrus.FieldKeyTime:  "ts",
 		logrus.FieldKeyLevel: "lvl",
@@ -65,62 +63,61 @@ func Initialize(ctx context.Context, logFileName, level, format, traceFileName s
 				},
 			})
 	default:
-		return errs.E(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid log format [%s]. supported formats: json, text", format))
+		return errs.E(ctx, errs.KindInvalidValue, fmt.Errorf("invalid log format [%s]. supported formats: json, text", format))
 	}
+
 	lvl, err := logrus.ParseLevel(level)
 	if err != nil {
-		return errs.E(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("parsing log level from config failed: %w", err))
+		return errs.E(ctx, errs.KindInvalidValue, fmt.Errorf("parsing log level from config failed: %w", err))
 	}
 	logrus.SetLevel(lvl)
-	Msg(ctx).Debugf("Logging initialized with level <%s>", level)
-	switch lvl {
-	case logrus.DebugLevel:
-		logrus.SetReportCaller(true)
-	case logrus.TraceLevel:
-		logrus.SetReportCaller(true)
+	LogMsg(ctx).Infof("Logging initialized with level <%s>", level) // first record in log file
+
+	logrus.SetReportCaller(lvl > logrus.InfoLevel)
+	errs.WithFrames(lvl > logrus.InfoLevel)
+	if lvl == logrus.TraceLevel{
 		var err error
 		if traceFileName == "" {
 			traceFile = os.Stderr
 		} else {
-			if traceFileName, err := fh.ResolvePath(traceFileName, usr); err != nil {
-				return errs.E(ctx, errs.SeverityCritical, errs.KindInvalidValue, fmt.Errorf("invalid trace file name <%s>: %w", traceFileName, err))
+			if traceFileName, err := fh.SafeParentResolvePath(traceFileName, usr, 0700); err != nil {
+				return errs.E(ctx, errs.KindInvalidValue, fmt.Errorf("invalid trace file name <%s>: %w", traceFileName, err))
 			}
 			if traceFile, err = os.OpenFile(traceFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0664); err != nil {
-				return errs.E(ctx, errs.SeverityCritical, errs.KindOSOpenFile, fmt.Errorf("creating trace file failed: %w", err))
+				return errs.E(ctx, errs.KindOSOpenFile, fmt.Errorf("creating trace file failed: %w", err))
 			}
 		}
 		if err := trace.Start(traceFile); err != nil {
-			return errs.E(ctx, errs.SeverityCritical, errs.KindInternal, fmt.Errorf("starting trace failed: %w", err))
+			return errs.E(ctx, errs.KindInternal, fmt.Errorf("starting trace failed: %w", err))
+		}
+		if traceFile != nil {
+			LogMsg(ctx).Tracef("Tracing started with output to %s", traceFile.Name())
 		}
 	}
-	errs.WithFrames(lvl > logrus.InfoLevel)
 	log.SetOutput(logrus.StandardLogger().Writer()) // to use with standard log pkg
-	if traceFile != nil {
-		Msg(ctx).Tracef("Tracing started with output to %s", traceFile.Name())
-	}
 	return nil
 }
 
 func Finalize() {
-	op := cou.Operation("log_finalize")
+	op := cu.Operation("log_finalize")
 	if traceFile != nil {
 		trace.Stop()
-		Msg(op).Trace("trace stopped")
+		LogMsg(op).Trace("trace stopped")
 		if traceFile != os.Stderr {
 			if err := traceFile.Close(); err != nil {
-				Msg(op).Errorf("closing trace file failed: %v", err)
+				LogMsg(op).Errorf("closing trace file failed: %v", err)
 			} else {
-				Msg(op).Trace("trace file closed")
+				LogMsg(op).Trace("trace file closed")
 			}
 		}
 	}
 	if nil != logFile {
-		Msg(op).Debug("Logging finalized.")
+		LogMsg(op).Debug("Logging finalized.")
 		if err := logFile.Sync(); err != nil {
-			Msg(op).Errorf("sync log buffer with file [%s] - failed: %v", logFile.Name(), err)
+			LogMsg(op).Errorf("sync log buffer with file [%s] - failed: %v", logFile.Name(), err)
 		}
 		if err := logFile.Close(); err != nil {
-			Msg(op).Errorf("closing log file [%s] - failed: %v\n", logFile.Name(), err)
+			LogMsg(op).Errorf("closing log file [%s] - failed: %v\n", logFile.Name(), err)
 		}
 	}
 }

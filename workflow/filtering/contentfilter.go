@@ -3,7 +3,7 @@ package filtering
 import (
 	"context"
 	"fmt"
-	cou "github.com/nj-eka/fdups/contextutils"
+	cou "github.com/nj-eka/fdups/contexts"
 	"github.com/nj-eka/fdups/errs"
 	. "github.com/nj-eka/fdups/filestat"
 	"github.com/nj-eka/fdups/logging"
@@ -72,7 +72,7 @@ func (r *contentFilter) Run(ctx context.Context) <-chan struct{} {
 		var wgStages sync.WaitGroup
 		defer func() {
 			wgStages.Wait()
-			logging.Msg(ctx).Debugf("closed")
+			logging.LogMsg(ctx).Debugf("closed")
 		}()
 		inputStream := r.inputCh
 
